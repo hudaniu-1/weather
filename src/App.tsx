@@ -41,7 +41,16 @@ function App() {
                       : '左右滑动切换页面'}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {weather.locationMode === 'manual' ? (
+              <button
+                type="button"
+                className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-100"
+                onClick={() => weather.useAutoLocation()}
+              >
+                用定位
+              </button>
+            ) : null}
             <button
               className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-100"
               onClick={() => setSheetOpen(true)}

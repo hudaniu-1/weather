@@ -65,6 +65,9 @@ export type WeatherVM = {
 
 const LS_CITY_KEY = 'weather:last_city:v1'
 const LS_CACHE_KEY = 'weather:last_vm:v1'
+const LS_LOCATION_MODE_KEY = 'weather:location_mode:v1'
+
+type LocationMode = 'auto' | 'manual'
 
 function formatHourLabel(unix: number) {
   const d = new Date(unix * 1000)
@@ -152,8 +155,15 @@ export type UseWeatherResult = {
   vm: WeatherVM | null
   errorMessage: string | null
   city: City | null
+  locationMode: LocationMode
   setCity: (city: City) => void
+  useAutoLocation: () => void
   refresh: () => void
+}
+
+function readLocationMode(): LocationMode {
+  const v = readJson<LocationMode>(LS_LOCATION_MODE_KEY)
+  return v === 'manual' ? 'manual' : 'auto'
 }
 
 export function useWeather(pos: LatLon | null) {
@@ -161,18 +171,34 @@ export function useWeather(pos: LatLon | null) {
   const [vm, setVm] = useState<WeatherVM | null>(() => readJson<WeatherVM>(LS_CACHE_KEY))
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [city, setCityState] = useState<City | null>(() => readJson<City>(LS_CITY_KEY))
+  const [locationMode, setLocationMode] = useState<LocationMode>(() => readLocationMode())
   const lastPosKeyRef = useRef<string>('')
 
-  const setCity = useCallback((c: City) => {
+  /** After a successful weather fetch: cache coords/name only, do not switch to manual mode. */
+  const syncCityCache = useCallback((c: City) => {
     setCityState(c)
     writeJson(LS_CITY_KEY, c)
   }, [])
 
+  /** User picked a city in search: prefer that city over GPS until they choose "用定位". */
+  const setCity = useCallback((c: City) => {
+    setCityState(c)
+    writeJson(LS_CITY_KEY, c)
+    setLocationMode('manual')
+    writeJson(LS_LOCATION_MODE_KEY, 'manual')
+  }, [])
+
+  const useAutoLocation = useCallback(() => {
+    setLocationMode('auto')
+    writeJson(LS_LOCATION_MODE_KEY, 'auto')
+  }, [])
+
   const effectivePos: LatLon | null = useMemo(() => {
+    if (locationMode === 'manual' && city) return { lat: city.lat, lon: city.lon }
     if (pos) return pos
     if (city) return { lat: city.lat, lon: city.lon }
     return null
-  }, [pos, city])
+  }, [locationMode, pos, city])
 
   const load = useCallback(async () => {
     if (!effectivePos) return
@@ -190,11 +216,18 @@ export function useWeather(pos: LatLon | null) {
         getAirPollution(effectivePos),
       ])
 
-      let cityName = current.name
-      if (!cityName || cityName.trim().length === 0) {
+      let apiCityLabel = current.name
+      if (!apiCityLabel || apiCityLabel.trim().length === 0) {
         const rev = await geoReverse(effectivePos, 1)
-        if (rev[0]?.name) cityName = rev[0].name
+        if (rev[0]?.name) apiCityLabel = rev[0].name
       }
+
+      // Manual search uses Geo names (e.g. 宁波); OWM current weather often returns a finer
+      // locality (e.g. Qiu'ai 邱隘). Prefer the label the user actually picked.
+      const displayCityName =
+        locationMode === 'manual' && city?.name?.trim()
+          ? city.name.trim()
+          : apiCityLabel || '当前位置'
 
       const firstForecast = forecast.list?.[0]
       const nextHours = buildNextHours(forecast.list ?? [])
@@ -202,7 +235,7 @@ export function useWeather(pos: LatLon | null) {
 
       const w0 = current.weather?.[0]
       const nextVm: WeatherVM = {
-        cityName: cityName || '当前位置',
+        cityName: displayCityName,
         pos: effectivePos,
         updatedAt: Date.now(),
 
@@ -233,7 +266,7 @@ export function useWeather(pos: LatLon | null) {
       setStatus('success')
 
       // Keep a usable city fallback for future loads even if geolocation becomes unavailable.
-      setCity({
+      syncCityCache({
         name: nextVm.cityName,
         lat: effectivePos.lat,
         lon: effectivePos.lon,
@@ -243,7 +276,7 @@ export function useWeather(pos: LatLon | null) {
       setErrorMessage(msg)
       setStatus('error')
     }
-  }, [effectivePos, setCity])
+  }, [city, effectivePos, locationMode, syncCityCache])
 
   const refresh = useCallback(() => {
     void load()
@@ -255,8 +288,17 @@ export function useWeather(pos: LatLon | null) {
   }, [effectivePos, load])
 
   return useMemo<UseWeatherResult>(
-    () => ({ status, vm, errorMessage, city, setCity, refresh }),
-    [status, vm, errorMessage, city, setCity, refresh],
+    () => ({
+      status,
+      vm,
+      errorMessage,
+      city,
+      locationMode,
+      setCity,
+      useAutoLocation,
+      refresh,
+    }),
+    [status, vm, errorMessage, city, locationMode, setCity, useAutoLocation, refresh],
   )
 }
 

@@ -1,6 +1,28 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { City } from '../hooks/useWeather'
+import { addCitySearchHistory, clearCitySearchHistory, readCitySearchHistory } from '../lib/citySearchHistory'
 import { geoDirect } from '../lib/owmClient'
+
+function CityPickRow(props: { city: City; onPick: (c: City) => void }) {
+  const { city: c } = props
+  return (
+    <button
+      type="button"
+      className="flex w-full items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3 text-left"
+      onClick={() => props.onPick(c)}
+    >
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium text-slate-100">{c.name}</div>
+        <div className="truncate text-xs text-slate-400">
+          {[c.state, c.country].filter(Boolean).join(' · ')}
+        </div>
+      </div>
+      <div className="text-xs text-slate-500">
+        {c.lat.toFixed(2)},{c.lon.toFixed(2)}
+      </div>
+    </button>
+  )
+}
 
 export function SearchCitySheet(props: {
   open: boolean
@@ -11,13 +33,29 @@ export function SearchCitySheet(props: {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<City[]>([])
+  const [history, setHistory] = useState<City[]>([])
+
+  const refreshHistory = useCallback(() => {
+    setHistory(readCitySearchHistory())
+  }, [])
 
   useEffect(() => {
     if (!props.open) return
     setQuery('')
     setResults([])
     setError(null)
-  }, [props.open])
+    refreshHistory()
+  }, [props.open, refreshHistory])
+
+  const pickCity = useCallback(
+    (c: City) => {
+      addCitySearchHistory(c)
+      refreshHistory()
+      props.onSelect(c)
+      props.onClose()
+    },
+    [props, refreshHistory],
+  )
 
   const canSearch = useMemo(() => query.trim().length >= 2, [query])
 
@@ -29,7 +67,6 @@ export function SearchCitySheet(props: {
       return
     }
 
-    const controller = new AbortController()
     const t = setTimeout(() => {
       setLoading(true)
       setError(null)
@@ -50,7 +87,6 @@ export function SearchCitySheet(props: {
     }, 350)
 
     return () => {
-      controller.abort()
       clearTimeout(t)
     }
   }, [props.open, canSearch, query])
@@ -60,20 +96,21 @@ export function SearchCitySheet(props: {
   return (
     <div className="fixed inset-0 z-50">
       <button
+        type="button"
         className="absolute inset-0 bg-black/60"
         onClick={props.onClose}
         aria-label="关闭"
       />
-      <div className="absolute inset-x-0 bottom-0 max-h-[80svh] rounded-t-3xl border border-slate-800 bg-slate-950 p-4 shadow-2xl">
-        <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-700" />
-        <div className="flex items-center justify-between">
+      <div className="absolute inset-x-0 bottom-0 flex max-h-[80svh] flex-col rounded-t-3xl border border-slate-800 bg-slate-950 p-4 shadow-2xl">
+        <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-slate-700" />
+        <div className="flex shrink-0 items-center justify-between">
           <div className="text-sm font-semibold text-slate-100">搜索城市</div>
-          <button className="text-sm text-slate-300" onClick={props.onClose}>
+          <button type="button" className="text-sm text-slate-300" onClick={props.onClose}>
             关闭
           </button>
         </div>
 
-        <div className="mt-3">
+        <div className="mt-3 shrink-0">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -83,38 +120,52 @@ export function SearchCitySheet(props: {
           <div className="mt-2 text-xs text-slate-400">至少输入 2 个字符</div>
         </div>
 
-        <div className="mt-4 space-y-2 overflow-auto pb-2">
-          {loading ? (
-            <div className="text-sm text-slate-300">搜索中…</div>
-          ) : error ? (
-            <div className="text-sm text-rose-300">{error}</div>
-          ) : results.length === 0 ? (
-            <div className="text-sm text-slate-400">暂无结果</div>
-          ) : (
-            results.map((c) => (
-              <button
-                key={`${c.lat},${c.lon}`}
-                className="flex w-full items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3 text-left"
-                onClick={() => {
-                  props.onSelect(c)
-                  props.onClose()
-                }}
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-slate-100">{c.name}</div>
-                  <div className="truncate text-xs text-slate-400">
-                    {[c.state, c.country].filter(Boolean).join(' · ')}
-                  </div>
+        <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto pb-2">
+          {history.length > 0 ? (
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-400">最近搜索</div>
+                <button
+                  type="button"
+                  className="text-xs text-slate-500 hover:text-slate-300"
+                  onClick={() => {
+                    clearCitySearchHistory()
+                    refreshHistory()
+                  }}
+                >
+                  清除记录
+                </button>
+              </div>
+              <div className="space-y-2">
+                {history.map((c) => (
+                  <CityPickRow key={`h-${c.lat},${c.lon}`} city={c} onPick={pickCity} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {canSearch ? (
+            <div>
+              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">搜索结果</div>
+              {loading ? (
+                <div className="text-sm text-slate-300">搜索中…</div>
+              ) : error ? (
+                <div className="text-sm text-rose-300">{error}</div>
+              ) : results.length === 0 ? (
+                <div className="text-sm text-slate-400">暂无结果</div>
+              ) : (
+                <div className="space-y-2">
+                  {results.map((c) => (
+                    <CityPickRow key={`${c.lat},${c.lon}`} city={c} onPick={pickCity} />
+                  ))}
                 </div>
-                <div className="text-xs text-slate-500">
-                  {c.lat.toFixed(2)},{c.lon.toFixed(2)}
-                </div>
-              </button>
-            ))
-          )}
+              )}
+            </div>
+          ) : query.trim().length === 1 ? (
+            <div className="text-xs text-slate-500">再输入 1 个字符可搜索</div>
+          ) : null}
         </div>
       </div>
     </div>
   )
 }
-
