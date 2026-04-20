@@ -10,6 +10,24 @@
   }
 
   body {
-    @apply bg-slate-950 text-slate-50 antialiased;
+    @apply min-h-screen antialiased;
   }
+}
+
+/* Swiper 分页点：浅色底上的圆点 */
+.weather-swiper .swiper-pagination {
+  bottom: 0.75rem !important;
+}
+
+.weather-swiper .swiper-pagination-bullet {
+  background: rgb(255 255 255 / 0.45);
+  opacity: 1;
+}
+
+.weather-swiper .swiper-pagination-bullet-active {
+  background: #fff;
+}
+
+.weather-swiper .swiper-pagination-bullet-active-main {
+  background: #fff;
 }

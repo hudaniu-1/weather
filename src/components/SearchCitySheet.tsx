@@ -8,16 +8,16 @@ function CityPickRow(props: { city: City; onPick: (c: City) => void }) {
   return (
     <button
       type="button"
-      className="flex w-full items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3 text-left"
+      className="flex w-full items-center justify-between rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-left backdrop-blur-sm transition hover:bg-white/15"
       onClick={() => props.onPick(c)}
     >
       <div className="min-w-0">
-        <div className="truncate text-sm font-medium text-slate-100">{c.name}</div>
-        <div className="truncate text-xs text-slate-400">
+        <div className="truncate text-sm font-medium text-white">{c.name}</div>
+        <div className="truncate text-xs text-white/65">
           {[c.state, c.country].filter(Boolean).join(' · ')}
         </div>
       </div>
-      <div className="text-xs text-slate-500">
+      <div className="text-xs text-white/50">
         {c.lat.toFixed(2)},{c.lon.toFixed(2)}
       </div>
     </button>
@@ -97,15 +97,15 @@ export function SearchCitySheet(props: {
     <div className="fixed inset-0 z-50">
       <button
         type="button"
-        className="absolute inset-0 bg-black/60"
+        className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]"
         onClick={props.onClose}
         aria-label="关闭"
       />
-      <div className="absolute inset-x-0 bottom-0 flex max-h-[80svh] flex-col rounded-t-3xl border border-slate-800 bg-slate-950 p-4 shadow-2xl">
-        <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-slate-700" />
+      <div className="absolute inset-x-0 bottom-0 flex max-h-[80svh] flex-col rounded-t-3xl border border-white/20 bg-gradient-to-b from-sky-700/95 to-blue-900/98 p-4 text-white shadow-2xl backdrop-blur-md">
+        <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-white/35" />
         <div className="flex shrink-0 items-center justify-between">
-          <div className="text-sm font-semibold text-slate-100">搜索城市</div>
-          <button type="button" className="text-sm text-slate-300" onClick={props.onClose}>
+          <div className="text-sm font-semibold">搜索城市</div>
+          <button type="button" className="text-sm text-white/80 hover:text-white" onClick={props.onClose}>
             关闭
           </button>
         </div>
@@ -114,20 +114,20 @@ export function SearchCitySheet(props: {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="输入城市名（如 北京 / Shanghai）"
-            className="w-full rounded-2xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-600"
+            placeholder="输入城市名（如 北京、上海）"
+            className="w-full rounded-2xl border border-white/25 bg-white/10 px-4 py-3 text-sm text-white outline-none placeholder:text-white/45 focus:border-white/40"
           />
-          <div className="mt-2 text-xs text-slate-400">至少输入 2 个字符</div>
+          <div className="mt-2 text-xs text-white/60">至少输入 2 个字符</div>
         </div>
 
         <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto pb-2">
           {history.length > 0 ? (
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <div className="text-xs font-medium uppercase tracking-wide text-slate-400">最近搜索</div>
+                <div className="text-xs font-medium tracking-wide text-white/70">最近搜索</div>
                 <button
                   type="button"
-                  className="text-xs text-slate-500 hover:text-slate-300"
+                  className="text-xs text-white/55 hover:text-white/90"
                   onClick={() => {
                     clearCitySearchHistory()
                     refreshHistory()
@@ -146,13 +146,13 @@ export function SearchCitySheet(props: {
 
           {canSearch ? (
             <div>
-              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">搜索结果</div>
+              <div className="mb-2 text-xs font-medium tracking-wide text-white/70">搜索结果</div>
               {loading ? (
-                <div className="text-sm text-slate-300">搜索中…</div>
+                <div className="text-sm text-white/80">搜索中…</div>
               ) : error ? (
-                <div className="text-sm text-rose-300">{error}</div>
+                <div className="text-sm text-rose-200">{error}</div>
               ) : results.length === 0 ? (
-                <div className="text-sm text-slate-400">暂无结果</div>
+                <div className="text-sm text-white/55">暂无结果</div>
               ) : (
                 <div className="space-y-2">
                   {results.map((c) => (
@@ -162,7 +162,7 @@ export function SearchCitySheet(props: {
               )}
             </div>
           ) : query.trim().length === 1 ? (
-            <div className="text-xs text-slate-500">再输入 1 个字符可搜索</div>
+            <div className="text-xs text-white/55">再输入 1 个字符可搜索</div>
           ) : null}
         </div>
       </div>

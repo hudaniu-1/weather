@@ -1,83 +1,78 @@
-import { MetricCard } from '../components/MetricCard'
-import { SectionTitle } from '../components/SectionTitle'
 import { Skeleton } from '../components/Skeleton'
 import { WeatherIcon } from '../components/WeatherIcon'
 import type { WeatherVM } from '../hooks/useWeather'
-
-function aqiText(aqi: 1 | 2 | 3 | 4 | 5) {
-  switch (aqi) {
-    case 1:
-      return '优'
-    case 2:
-      return '良'
-    case 3:
-      return '轻度污染'
-    case 4:
-      return '中度污染'
-    case 5:
-      return '重度污染'
-  }
-}
+import { aqiAdviceCn, aqiLevelCn } from '../lib/weatherLocale'
 
 export function HomePage(props: { status: 'loading' | 'success' | 'error' | 'idle'; vm: WeatherVM | null }) {
   const vm = props.vm
 
   return (
-    <div className="px-4 pb-24 pt-5">
-      <SectionTitle right={vm ? new Date(vm.updatedAt).toLocaleTimeString() : null}>
-        天气概况
-      </SectionTitle>
-
-      <div className="mt-3 rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900/70 to-slate-950 p-5">
-        {props.status === 'loading' && !vm ? (
-          <div>
-            <Skeleton className="h-6 w-40" />
-            <div className="mt-4 grid grid-cols-[1fr_auto] items-center gap-4">
-              <div>
-                <Skeleton className="h-10 w-28" />
-                <Skeleton className="mt-2 h-4 w-44" />
-              </div>
-              <Skeleton className="h-14 w-14 rounded-xl" />
+    <div className="flex min-h-[calc(100svh-8.5rem)] flex-col px-4 pb-28 pt-2">
+      {props.status === 'loading' && !vm ? (
+        <div className="flex flex-1 flex-col items-center pt-8">
+          <Skeleton className="h-8 w-32 bg-white/20" />
+          <Skeleton className="mt-3 h-5 w-20 bg-white/20" />
+          <Skeleton className="mt-10 h-16 w-28 bg-white/20" />
+          <Skeleton className="mt-4 h-4 w-40 bg-white/20" />
+          <Skeleton className="mt-10 h-14 w-full max-w-sm rounded-full bg-white/15" />
+        </div>
+      ) : vm ? (
+        <>
+          <div className="flex flex-1 flex-col items-center text-center">
+            <h1 className="text-2xl font-bold tracking-tight text-white drop-shadow-sm">{vm.cityName}</h1>
+            <p className="mt-1 text-base text-white/90">{vm.nowDesc}</p>
+            <div className="mt-8 text-7xl font-light leading-none tracking-tighter text-white drop-shadow-md">
+              {Math.round(vm.nowTempC)}°
+            </div>
+            <p className="mt-4 text-sm text-white/85">
+              最高 {Math.round(vm.todayMaxC)}° · 最低 {Math.round(vm.todayMinC)}°
+            </p>
+            <div className="mt-10">
+              <WeatherIcon icon={vm.nowIcon} size={88} alt={vm.nowDesc} />
             </div>
           </div>
-        ) : vm ? (
-          <div className="grid grid-cols-[1fr_auto] items-center gap-4">
-            <div className="min-w-0">
-              <div className="truncate text-sm text-slate-300">{vm.cityName}</div>
-              <div className="mt-1 text-5xl font-semibold tracking-tight text-white">
-                {Math.round(vm.nowTempC)}°
-              </div>
-              <div className="mt-2 text-sm text-slate-300">
-                {vm.nowDesc} · {Math.round(vm.todayMinC)}° ~ {Math.round(vm.todayMaxC)}°
-              </div>
-            </div>
-            <WeatherIcon icon={vm.nowIcon} size={72} alt={vm.nowDesc} />
-          </div>
-        ) : (
-          <div className="text-sm text-slate-300">暂无数据</div>
-        )}
-      </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <MetricCard
-          label="最高 / 最低"
-          value={
-            vm ? (
-              <span>
-                {Math.round(vm.todayMaxC)}° / {Math.round(vm.todayMinC)}°
-              </span>
-            ) : (
-              '—'
-            )
-          }
-        />
-        <MetricCard
-          label="空气质量"
-          value={vm?.aqi ? `${vm.aqi} · ${aqiText(vm.aqi)}` : '—'}
-          sub={vm?.aqi ? 'AQI(1-5)' : '暂无'}
-        />
-      </div>
+          <div className="mt-auto flex items-center justify-between gap-3 rounded-full border border-white/25 bg-white/10 px-5 py-3.5 text-sm text-white shadow-lg backdrop-blur-md">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="text-white/90">空气质量</span>
+              {vm.aqi ? (
+                <>
+                  <span className="font-semibold">等级 {vm.aqi}</span>
+                  <span
+                    className={[
+                      'rounded-md px-2 py-0.5 text-xs font-medium',
+                      vm.aqi === 1
+                        ? 'bg-emerald-500/90 text-white'
+                        : vm.aqi === 2
+                          ? 'bg-lime-500/90 text-slate-900'
+                          : vm.aqi === 3
+                            ? 'bg-amber-400/95 text-slate-900'
+                            : vm.aqi === 4
+                              ? 'bg-orange-500/95 text-white'
+                              : 'bg-rose-600/95 text-white',
+                    ].join(' ')}
+                  >
+                    {aqiLevelCn(vm.aqi)}
+                  </span>
+                </>
+              ) : (
+                <span className="text-white/70">暂无数据</span>
+              )}
+            </div>
+            <p className="max-w-[52%] text-right text-xs leading-snug text-white/85">
+              {vm.aqi ? aqiAdviceCn(vm.aqi) : '刷新后可查看空气质量'}
+            </p>
+          </div>
+          {props.status === 'error' ? (
+            <p className="mt-3 text-center text-xs text-amber-100/95">上次请求失败，数据可能不是最新，请点击「刷新」重试。</p>
+          ) : null}
+        </>
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center text-center text-white/80">
+          <p className="text-sm">暂无天气数据</p>
+          <p className="mt-2 text-xs text-white/60">请允许定位或搜索城市</p>
+        </div>
+      )}
     </div>
   )
 }
-

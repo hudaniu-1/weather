@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LatLon } from '../lib/owmClient'
 import { geoReverse, getAirPollution, getCurrentWeather, getForecast } from '../lib/owmClient'
 import type { OwmForecastItem } from '../lib/owmTypes'
+import { approxDewPointC } from '../lib/weatherLocale'
 import { readJson, writeJson } from '../lib/storage'
 
 type LoadStatus = 'idle' | 'loading' | 'success' | 'error'
@@ -29,7 +30,10 @@ export type HourlyPoint = {
 }
 
 export type DailyRange = {
+  /** 月/日，用于缓存兼容 */
   dayLabel: string
+  /** 今天 / 明天 / 周二 等（旧缓存可能无） */
+  dayTitle?: string
   minC: number
   maxC: number
   icon?: string
@@ -57,7 +61,10 @@ export type WeatherVM = {
   // Details
   feelsLikeC: number
   windSpeedMps: number
+  windDeg?: number
   humidityPct: number
+  /** 旧缓存可能无此字段 */
+  dewPointC?: number
   visibilityM?: number
   sunriseUnix: number
   sunsetUnix: number
@@ -69,17 +76,27 @@ const LS_LOCATION_MODE_KEY = 'weather:location_mode:v1'
 
 type LocationMode = 'auto' | 'manual'
 
-function formatHourLabel(unix: number) {
-  const d = new Date(unix * 1000)
-  const h = d.getHours().toString().padStart(2, '0')
-  return `${h}:00`
-}
-
 function formatDayLabel(unix: number) {
   const d = new Date(unix * 1000)
   const m = (d.getMonth() + 1).toString().padStart(2, '0')
   const day = d.getDate().toString().padStart(2, '0')
   return `${m}/${day}`
+}
+
+function startOfLocalDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
+
+function dayTitleCn(firstDtUnix: number): string {
+  const d = new Date(firstDtUnix * 1000)
+  const now = new Date()
+  const dayStart = startOfLocalDay(d)
+  const todayStart = startOfLocalDay(now)
+  const diffDays = Math.round((dayStart - todayStart) / 86400000)
+  if (diffDays === 0) return '今天'
+  if (diffDays === 1) return '明天'
+  const names = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  return names[d.getDay()]!
 }
 
 function clampFinite(n: number, fallback = 0) {
@@ -103,7 +120,7 @@ function buildDailyRanges(list: OwmForecastItem[]): DailyRange[] {
   const days = Array.from(byDay.values())
     .map((items) => items.sort((a, b) => a.dt - b.dt))
     .sort((a, b) => a[0]!.dt - b[0]!.dt)
-    .slice(0, 3)
+    .slice(0, 10)
 
   return days.map((items) => {
     let minC = Number.POSITIVE_INFINITY
@@ -115,8 +132,10 @@ function buildDailyRanges(list: OwmForecastItem[]): DailyRange[] {
 
     const rep = items[Math.floor(items.length / 2)] ?? items[0]!
     const { icon, desc } = pickRepresentativeWeather(rep)
+    const firstDt = items[0]!.dt
     return {
-      dayLabel: formatDayLabel(items[0]!.dt),
+      dayLabel: formatDayLabel(firstDt),
+      dayTitle: dayTitleCn(firstDt),
       minC: clampFinite(minC),
       maxC: clampFinite(maxC),
       icon,
@@ -136,13 +155,20 @@ function buildTwoHourPrecipApprox(firstForecast: OwmForecastItem | undefined): T
   return { hour1Mm: perHour, hour2Mm: perHour, source: 'forecast_3h_split' }
 }
 
+function formatHourLabelCn(dtUnix: number, index: number): string {
+  const diffMin = Math.abs(dtUnix * 1000 - Date.now()) / 60000
+  if (index === 0 && diffMin <= 120) return '现在'
+  const h = new Date(dtUnix * 1000).getHours()
+  return `${h}时`
+}
+
 function buildNextHours(list: OwmForecastItem[]): HourlyPoint[] {
-  // 3-hour granularity: we still present as time points, not strict hourly.
-  return list.slice(0, 5).map((it) => {
+  // 3-hour粒度：仍按预报时间点展示
+  return list.slice(0, 8).map((it, index) => {
     const { icon, desc } = pickRepresentativeWeather(it)
     return {
       dt: it.dt,
-      label: formatHourLabel(it.dt),
+      label: formatHourLabelCn(it.dt, index),
       tempC: clampFinite(it.main.temp),
       icon,
       desc,
@@ -234,12 +260,18 @@ export function useWeather(pos: LatLon | null) {
       const next3Days = buildDailyRanges(forecast.list ?? [])
 
       const w0 = current.weather?.[0]
+      const temp = clampFinite(current.main.temp)
+      const rh = clampFinite(current.main.humidity)
+      const dewFromApi = current.main.dew_point
+      const dewPointC =
+        dewFromApi != null && Number.isFinite(dewFromApi) ? clampFinite(dewFromApi) : approxDewPointC(temp, rh)
+
       const nextVm: WeatherVM = {
         cityName: displayCityName,
         pos: effectivePos,
         updatedAt: Date.now(),
 
-        nowTempC: clampFinite(current.main.temp),
+        nowTempC: temp,
         nowDesc: w0?.description ?? '—',
         nowIcon: w0?.icon,
         todayMinC: clampFinite(current.main.temp_min),
@@ -252,7 +284,9 @@ export function useWeather(pos: LatLon | null) {
 
         feelsLikeC: clampFinite(current.main.feels_like),
         windSpeedMps: clampFinite(current.wind.speed),
-        humidityPct: clampFinite(current.main.humidity),
+        windDeg: Number.isFinite(current.wind.deg) ? current.wind.deg : undefined,
+        humidityPct: rh,
+        dewPointC,
         visibilityM: current.visibility,
         sunriseUnix: current.sys.sunrise,
         sunsetUnix: current.sys.sunset,

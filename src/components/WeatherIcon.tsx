@@ -5,7 +5,7 @@ export function WeatherIcon(props: { icon?: string; size?: number; alt?: string 
   if (!props.icon) {
     return (
       <div
-        className="rounded-xl border border-slate-800 bg-slate-900/60"
+        className="rounded-xl border border-white/20 bg-white/10"
         style={{ width: size, height: size }}
         aria-hidden="true"
       />

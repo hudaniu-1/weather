@@ -14,6 +14,8 @@ export type OwmMain = {
   temp_max: number
   pressure: number
   humidity: number
+  /** 部分接口会返回；未返回时由前端按温湿度估算 */
+  dew_point?: number
 }
 
 export type OwmWind = {

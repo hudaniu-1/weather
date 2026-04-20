@@ -46,7 +46,11 @@ export function useGeolocation(opts: { enableHighAccuracy?: boolean; timeoutMs?:
           return
         }
         setStatus('error')
-        setErrorMessage(err.message || '定位失败')
+        if (err.code === err.TIMEOUT) {
+          setErrorMessage('定位超时，请稍后重试或改用搜索城市')
+        } else {
+          setErrorMessage(err.message ? `定位异常：${err.message}` : '定位失败')
+        }
       },
       {
         enableHighAccuracy: opts.enableHighAccuracy ?? false,
